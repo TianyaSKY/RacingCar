@@ -1,7 +1,8 @@
 # entities/obstacle.py
 import random
-from utils import draw_cube
-from config import *
+
+from ..utils import draw_cube
+from ..config import *
 
 class Obstacle:
     def __init__(self, track_instance):

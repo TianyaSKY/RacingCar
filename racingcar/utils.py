@@ -2,7 +2,7 @@
 import pygame
 from OpenGL.GL import *
 from OpenGL.GLU import *
-from config import *
+from racingcar.config import *
 
 def resize(width, height):
     """处理窗口大小调整"""

@@ -2,8 +2,9 @@
 from OpenGL.GL import glPopMatrix, glPushMatrix, glRotatef, glTranslatef
 import pygame
 import math
-from utils import draw_cube
-from config import *
+
+from ..utils import draw_cube
+from ..config import *
 
 class Car:
     def __init__(self, start_pos=(0, 0, 0)):
@@ -55,6 +56,47 @@ class Car:
         # sin/cos 的计算取决于你的 0度 定义。
         # 这里假设 0度 是沿着 Z轴正方向，所以前进是 sin(angle), cos(angle)
         # 经过调整适配 OpenGL 的 gluLookAt:
+        self.x += math.sin(rad) * self.current_speed
+        self.z += math.cos(rad) * self.current_speed
+
+    def apply_action(self, action):
+        """
+        应用动作（用于强化学习）
+        action: 整数，0-6
+        0: 无动作
+        1: 加速
+        2: 减速
+        3: 左转
+        4: 右转
+        5: 加速+左转
+        6: 加速+右转
+        """
+        # 速度控制
+        if action in [1, 5, 6]:  # 加速
+            self.target_speed = CAR_BASE_SPEED
+        elif action == 2:  # 减速
+            self.target_speed = -CAR_BASE_SPEED / 2
+        else:
+            self.target_speed = 0
+
+        # 平滑加速
+        if self.current_speed < self.target_speed:
+            self.current_speed = min(self.target_speed, self.current_speed + ACCELERATION)
+        elif self.current_speed > self.target_speed:
+            self.current_speed = max(self.target_speed, self.current_speed - ACCELERATION)
+        else:
+            self.current_speed *= FRICTION
+
+        # 转向控制
+        if abs(self.current_speed) > 0.05:
+            direction = 1 if self.current_speed > 0 else -1
+            if action in [3, 5]:  # 左转
+                self.angle += TURN_SPEED * direction
+            if action in [4, 6]:  # 右转
+                self.angle -= TURN_SPEED * direction
+
+        # 物理运动计算
+        rad = math.radians(self.angle)
         self.x += math.sin(rad) * self.current_speed
         self.z += math.cos(rad) * self.current_speed
 

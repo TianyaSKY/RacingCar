@@ -2,7 +2,8 @@
 import math
 import random
 from OpenGL.GL import *
-from config import *
+
+from ..config import *
 
 class Track:
     def __init__(self):

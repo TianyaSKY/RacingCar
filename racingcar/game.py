@@ -6,11 +6,11 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from config import *
-from utils import resize, draw_text_2d
-from entities.car import Car
-from entities.track import Track
-from entities.obstacle import Obstacle
+from .config import *
+from .utils import resize, draw_text_2d
+from .entities.car import Car
+from .entities.track import Track
+from .entities.obstacle import Obstacle
 
 class Game:
     def __init__(self):

@@ -1,6 +1,7 @@
 # entities/environment.py
 from OpenGL.GL import *
-from config import *
+
+from ..config import *
 
 class Environment:
     def draw(self, player_z):
@@ -27,7 +28,7 @@ class Environment:
     def _draw_road(self, player_z):
         glColor3f(*COLOR_ROAD)
         glBegin(GL_QUADS)
-        # [修改] 使用配置中的道路宽度
+        
         w = ROAD_WIDTH 
         glVertex3f(-w, -0.9, player_z + 50); glVertex3f(w, -0.9, player_z + 50)
         glVertex3f(w, -0.9, player_z - 200); glVertex3f(-w, -0.9, player_z - 200)
