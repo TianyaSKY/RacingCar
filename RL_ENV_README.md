@@ -68,75 +68,10 @@ RacingCar/
 - 每秒存活: -0.3
 - 碰撞惩罚: -100
 - 出界惩罚: -50
-- 速度奖励: 速度 * 0.1
+- 速度奖励: 速度 * 0.8
 - 保持在赛道上奖励: (1 - 距离/ROAD_WIDTH) * 0.5
 
-## 使用方法
-
-### 1. 基本使用
-
-```python
-from racingcar.racing_env import RacingEnv
-
-# 创建环境（不渲染，用于训练）
-env = RacingEnv(render_mode=None)
-
-# 或者创建带渲染的环境（用于测试）
-env = RacingEnv(render_mode='human')
-
-# 重置环境
-obs, info = env.reset()
-
-# 执行动作
-action = env.action_space.sample()  # 随机动作
-obs, reward, done, truncated, info = env.step(action)
-
-# 渲染（如果 render_mode='human'）
-env.render()
-
-# 关闭环境
-env.close()
-```
-
-### 2. 使用 Stable-Baselines3 训练
-
-#### 使用 PPO 算法
-
-```python
-from stable_baselines3 import PPO
-from racingcar.racing_env import RacingEnv
-
-env = RacingEnv(render_mode=None)
-
-model = PPO('MlpPolicy', env, verbose=1)
-model.learn(total_timesteps=100000)
-model.save("ppo_racing_car")
-
-# 测试模型
-env = RacingEnv(render_mode='human')
-obs, info = env.reset()
-for _ in range(1000):
-    action, _ = model.predict(obs, deterministic=True)
-    obs, reward, done, truncated, info = env.step(action)
-    env.render()
-    if done or truncated:
-        obs, info = env.reset()
-```
-
-#### 使用 DQN 算法
-
-```python
-from stable_baselines3 import DQN
-from racingcar.racing_env import RacingEnv
-
-env = RacingEnv(render_mode=None)
-
-model = DQN('MlpPolicy', env, verbose=1)
-model.learn(total_timesteps=100000)
-model.save("dqn_racing_car")
-```
-
-### 3. 使用训练脚本
+## 使用训练脚本
 
 ```bash
 # 使用 PPO 训练
@@ -149,7 +84,7 @@ python train_rl.py dqn
 python train_rl.py random
 ```
 
-### 4. 可视化已训练的模型
+### 可视化已训练的模型
 
 #### 方法 1: 使用 train_rl.py
 
@@ -188,7 +123,7 @@ python visualize_model.py dqn_racing_car auto 5
 
 ## 自定义环境
 
-你可以通过修改 `config.py` 来调整环境参数：
+可以通过修改 `config.py` 来调整环境参数：
 
 - `CAR_BASE_SPEED`: 车辆基础速度
 - `TURN_SPEED`: 转向速度
