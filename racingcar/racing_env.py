@@ -84,6 +84,8 @@ class RacingEnv(gym.Env):
         self.obstacles = None
         self.steps = 0
         self.max_steps = 2000  # 最大步数
+        self.current_reward = 0.0  # 当前奖励值
+        self.total_reward = 0.0  # 累计奖励值
 
         # 用于渲染
         self.clock = None
@@ -217,6 +219,8 @@ class RacingEnv(gym.Env):
 
         # 重置游戏状态
         self.steps = 0
+        self.current_reward = 0.0
+        self.total_reward = 0.0
 
         # 生成新赛道
         self.track = Track()
@@ -246,14 +250,14 @@ class RacingEnv(gym.Env):
 
         # 检查碰撞和出界
         done = False
-        reward = -0.5  # 每秒存活惩罚
+        reward = REWARD_STEP_PENALTY  # 每秒存活惩罚
 
         # 1. 碰撞检测（障碍物）
         car_bounds = self.car.get_bounds()
         for obs in self.obstacles:
             if self._check_aabb_collision(car_bounds, obs.get_bounds()):
                 done = True
-                reward = -100  # 碰撞惩罚
+                reward = REWARD_COLLISION_PENALTY  # 碰撞惩罚
                 break
 
         # 2. 出界检测
@@ -261,22 +265,26 @@ class RacingEnv(gym.Env):
             dist = self.track.get_closest_distance(self.car.x, self.car.z)
             if dist > ROAD_WIDTH + OFF_ROAD_TOLERANCE:
                 done = True
-                reward = -50  # 出界惩罚
+                reward = REWARD_OUT_OF_BOUNDS_PENALTY  # 出界惩罚
             else:
                 # 速度奖励
-                reward += self.car.current_speed * 0.8
+                reward += self.car.current_speed * REWARD_SPEED_REWARD
 
                 # 保持在赛道上的奖励
-                track_reward = (1 - dist / ROAD_WIDTH) * 0.05
+                track_reward = (1 - dist / ROAD_WIDTH) * REWARD_TRACK_CENTER_REWARD
                 reward += max(0, track_reward)
 
         # 3. 最大步数限制
         if self.steps >= self.max_steps:
             done = True
 
+        # 更新奖励值（用于显示）
+        self.current_reward = reward
+        self.total_reward += reward
+
         # 获取新观察
         observation = self._get_observation()
-        info = {'steps': self.steps}
+        info = {'steps': self.steps, 'reward': reward, 'total_reward': self.total_reward}
 
         if GYMNASIUM:
             return observation, reward, done, False, info
@@ -336,6 +344,13 @@ class RacingEnv(gym.Env):
         track_dist = self.track.get_closest_distance(self.car.x, self.car.z)
         draw_text_2d(f"Track Dist: {track_dist:.2f}",
                      10, 70, 30, COLOR_TEXT_SCORE)
+
+        # 显示当前奖励值和累计奖励
+        reward_color = COLOR_TEXT_SCORE if self.current_reward >= 0 else COLOR_TEXT_GAME_OVER
+        draw_text_2d(f"Reward: {self.current_reward:.2f}",
+                     10, 100, 30, reward_color)
+        draw_text_2d(f"Total Reward: {self.total_reward:.2f}",
+                     10, 130, 30, COLOR_TEXT_SCORE)
 
         pygame.display.flip()
         if self.clock:

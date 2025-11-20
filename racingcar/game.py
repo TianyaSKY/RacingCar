@@ -34,6 +34,8 @@ class Game:
         self.score = 0
         self.start_time = pygame.time.get_ticks()
         self.game_over_reason = ""
+        self.current_reward = 0.0  # 当前奖励值
+        self.total_reward = 0.0  # 累计奖励值
         
         # 1. 生成赛道
         self.track = Track()
@@ -63,19 +65,39 @@ class Game:
 
         self.car.update()
 
+        # 计算奖励（与 racing_env.py 中的逻辑一致）
+        reward = REWARD_STEP_PENALTY  # 每步存活惩罚
+
         # 1. 碰撞检测 (障碍物)
         car_bounds = self.car.get_bounds()
+        collision_detected = False
         for obs in self.obstacles:
             if self.check_aabb_collision(car_bounds, obs.get_bounds()):
                 self.game_over = True
                 self.game_over_reason = "Crashed into Obstacle"
+                reward = REWARD_COLLISION_PENALTY  # 碰撞惩罚
+                collision_detected = True
+                break
 
         # 2. 出界检测 (核心逻辑修改)
         # 计算车距离赛道中心线的距离
-        dist = self.track.get_closest_distance(self.car.x, self.car.z)
-        if dist > ROAD_WIDTH + OFF_ROAD_TOLERANCE:
-            self.game_over = True
-            self.game_over_reason = "Off Track (You Fell Off!)"
+        if not collision_detected:
+            dist = self.track.get_closest_distance(self.car.x, self.car.z)
+            if dist > ROAD_WIDTH + OFF_ROAD_TOLERANCE:
+                self.game_over = True
+                self.game_over_reason = "Off Track (You Fell Off!)"
+                reward = REWARD_OUT_OF_BOUNDS_PENALTY  # 出界惩罚
+            else:
+                # 速度奖励
+                reward += self.car.current_speed * REWARD_SPEED_REWARD
+
+                # 保持在赛道上的奖励
+                track_reward = (1 - dist / ROAD_WIDTH) * REWARD_TRACK_CENTER_REWARD
+                reward += max(0, track_reward)
+
+        # 更新奖励值（用于显示）
+        self.current_reward = reward
+        self.total_reward += reward
 
         # 3. 简单的分数计算 (生存时间)
         self.score = (pygame.time.get_ticks() - self.start_time) // 100
@@ -115,6 +137,20 @@ class Game:
 
         # UI
         draw_text_2d(f"Time: {self.score}", 10, 10, 30, COLOR_TEXT_SCORE)
+        draw_text_2d(f"Speed: {self.car.current_speed:.2f}",
+                     10, 40, 30, COLOR_TEXT_SCORE)
+        
+        # 显示到赛道中心线的距离
+        track_dist = self.track.get_closest_distance(self.car.x, self.car.z)
+        draw_text_2d(f"Track Dist: {track_dist:.2f}",
+                     10, 70, 30, COLOR_TEXT_SCORE)
+        
+        # 显示当前奖励值和累计奖励
+        reward_color = COLOR_TEXT_SCORE if self.current_reward >= 0 else COLOR_TEXT_GAME_OVER
+        draw_text_2d(f"Reward: {self.current_reward:.2f}",
+                     10, 100, 30, reward_color)
+        draw_text_2d(f"Total Reward: {self.total_reward:.2f}",
+                     10, 130, 30, COLOR_TEXT_SCORE)
         
         if self.game_over:
             cx, cy = DISPLAY_WIDTH // 2, DISPLAY_HEIGHT // 2
