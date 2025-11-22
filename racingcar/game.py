@@ -23,6 +23,28 @@ class Game:
         resize(DISPLAY_WIDTH, DISPLAY_HEIGHT)
         glEnable(GL_DEPTH_TEST)
         glShadeModel(GL_SMOOTH)
+        
+        # 启用雾效增强3D深度感
+        glEnable(GL_FOG)
+        fog_color = (0.5, 0.7, 1.0, 1.0)  # 天空蓝渐变
+        glFogfv(GL_FOG_COLOR, fog_color)
+        glFogf(GL_FOG_DENSITY, 0.02)
+        glFogi(GL_FOG_MODE, GL_EXP)
+        glHint(GL_FOG_HINT, GL_NICEST)
+
+        # 启用基本光照增强3D立体感
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+        light_pos = [10.0, 10.0, 10.0, 1.0]  # 光源位置
+        glLightfv(GL_LIGHT0, GL_POSITION, light_pos)
+        ambient = [0.2, 0.2, 0.2, 1.0]  # 环境光
+        diffuse = [0.8, 0.8, 0.8, 1.0]  # 漫反射光
+        glLightfv(GL_LIGHT0, GL_AMBIENT, ambient)
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse)
+        
+        # 启用颜色材质，使glColor生效
+        glEnable(GL_COLOR_MATERIAL)
+        glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
 
         self.reset_game()
         
@@ -169,4 +191,3 @@ class Game:
         
         pygame.quit()
         sys.exit()
-

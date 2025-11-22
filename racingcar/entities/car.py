@@ -108,10 +108,10 @@ class Car:
         # 注意：这里不用再传 x, y, z 给 draw_cube，因为我们已经 translate 了
         # 只需要画在局部坐标 (0,0,0) 即可
         
-        # 车身
-        draw_cube(0, 0, 0, self.width, self.height, self.depth, COLOR_CAR_BODY)
-        # 驾驶舱
-        draw_cube(0, self.height/2 + 0.25 - 0.1, -0.2, 1.2, 0.5, 1.0, COLOR_CAR_WINDOW)
+        # 车身 - 金属蓝
+        draw_cube(0, 0, 0, self.width, self.height, self.depth, (0.1, 0.2, 0.5))
+        # 驾驶舱 - 深色玻璃
+        draw_cube(0, self.height/2 + 0.25 - 0.1, -0.2, 1.2, 0.5, 1.0, (0.05, 0.05, 0.15))
         
         # 车轮绘制 (局部坐标)
         self._draw_wheels_local()
@@ -128,7 +128,14 @@ class Car:
         ]
         for ox, oz in offsets:
             # y轴偏移是 r-0.4 (因为车身中心在0.4)
-            draw_cube(ox, r - 0.4, oz, t, r*2, r*2, COLOR_CAR_WHEEL)
+            # 车轮 - 黑色轮毂 + 银色轮圈
+            draw_cube(ox, r - 0.4, oz, t, r*2, r*2, (0.0, 0.0, 0.0))
+            # 添加轮圈细节
+            if r > 0.2:
+                draw_cube(ox, r - 0.3, oz, t*0.6, 0.1, 0.1, (0.7, 0.7, 0.7))
+                draw_cube(ox, r - 0.5, oz, t*0.6, 0.1, 0.1, (0.7, 0.7, 0.7))
+                draw_cube(ox, r - 0.4, oz + 0.1, t*0.6, 0.1, 0.1, (0.7, 0.7, 0.7))
+                draw_cube(ox, r - 0.4, oz - 0.1, t*0.6, 0.1, 0.1, (0.7, 0.7, 0.7))
 
     def get_bounds(self):
         # 简单的 AABB，这里不处理旋转后的精确碰撞，否则太复杂

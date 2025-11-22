@@ -1,16 +1,18 @@
 # train_rl.py
-"""
-强化学习训练脚本示例
-使用 Stable-Baselines3 或类似的 RL 库进行训练
-"""
 import os
+import argparse
 import numpy as np
+import torch
 from racingcar.racing_env import RacingEnv
-from stable_baselines3 import PPO, DQN
+from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
-SB3_AVAILABLE = True
+
+# 全局配置
+N_ENVS = 8  # CPU 核心数
+N_STEPS = 128  # 运算步 需要同步调整
+SEED = 42
 
 
 class PeriodicCheckpointCallback(BaseCallback):
@@ -25,353 +27,196 @@ class PeriodicCheckpointCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.num_timesteps % self.save_freq == 0:
-            save_path = os.path.join(
-                self.save_dir, f"{self.name_prefix}_{self.num_timesteps}")
+            save_path = os.path.join(self.save_dir, f"{self.name_prefix}_{self.num_timesteps}")
             self.model.save(save_path)
             if self.verbose > 0:
                 print(f"[Checkpoint] 已保存模型至 {save_path}.zip")
         return True
 
 
-def train_with_ppo():
-    """使用 PPO 算法训练"""
-
-    env = make_vec_env(
+def get_vec_env(n_envs=N_ENVS, render_mode=None):
+    """统一创建并行环境的辅助函数"""
+    return make_vec_env(
         RacingEnv,
-        n_envs=8,
-        env_kwargs={'render_mode': None},
+        n_envs=n_envs,
+        env_kwargs={'render_mode': render_mode},
         vec_env_cls=SubprocVecEnv,
-        seed=42
+        seed=SEED
     )
 
-    # 创建 PPO 模型
+
+def train(args):
+    """从头开始训练"""
+    print(f"启动训练: {N_ENVS} 核并行, 总步数 {args.timesteps}")
+    env = get_vec_env()
+
+    # 针对32核无显卡服务器优化后的参数
     model = PPO(
         'MlpPolicy',
         env,
         verbose=1,
         learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
+        n_steps=N_STEPS,  # 优化点: 32 envs * 512 steps = 16384 batch size
+        batch_size=256,  # 优化点: CPU 推理 batch size
         n_epochs=10,
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
+        device="cpu",  # 显式指定 CPU
         tensorboard_log="./logs/",
     )
 
-    # 训练
-    print("开始训练 PPO 模型...")
     checkpoint_callback = PeriodicCheckpointCallback(
-        save_freq=10_000,
+        save_freq=args.save_freq,
         save_dir="./checkpoints/ppo",
         name_prefix="ppo_racing_car",
         verbose=1,
     )
-    model.learn(total_timesteps=500000, callback=checkpoint_callback)
 
-    # 保存模型
-    model.save("ppo_racing_car")
-    print("模型已保存为 ppo_racing_car")
+    model.learn(total_timesteps=args.timesteps, callback=checkpoint_callback)
 
-    # 测试训练好的模型
-    test_model(model)
-
+    save_path = "ppo_racing_car_final"
+    model.save(save_path)
+    print(f"训练完成，模型已保存为 {save_path}.zip")
     env.close()
 
 
-def continue_training(model_path, algorithm='ppo', total_timesteps=100000, 
-                     save_freq=10000, save_dir=None, name_prefix=None):
-    """
-    基于已有模型继续训练
-    
-    Args:
-        model_path: 模型文件路径（不含扩展名）
-        algorithm: 算法类型 ('ppo' 或 'dqn')
-        total_timesteps: 继续训练的步数
-        save_freq: 保存检查点的频率（步数）
-        save_dir: 检查点保存目录
-        name_prefix: 检查点文件名前缀
-    """
-    import os
-    
-    # 检查模型文件是否存在
-    if not os.path.exists(f"{model_path}.zip"):
-        print(f"错误: 找不到模型文件 {model_path}.zip")
-        print("请确保模型文件存在。")
+def continue_train(args):
+    """继续训练"""
+    model_path = args.model_path
+    if not os.path.exists(f"{model_path}.zip") and not os.path.exists(model_path):
+        print(f"错误: 找不到模型文件 {model_path}")
         return
-    
-    # 加载模型
-    print(f"正在加载模型: {model_path}.zip")
+
+    print(f"加载模型: {model_path} ...")
+
+    # 1. 创建环境 (必须在 load 之前)
+    env = get_vec_env()
+
+    # 2. 加载模型并注入环境
     try:
-        if algorithm.lower() == 'ppo':
-            model = PPO.load(model_path)
-        elif algorithm.lower() == 'dqn':
-            model = DQN.load(model_path)
-        else:
-            print(f"错误: 不支持的算法类型 '{algorithm}'")
-            return
+        model = PPO.load(model_path, env=env, device="cpu")
     except Exception as e:
-        print(f"加载模型失败: {e}")
+        print(f"加载失败 (请检查 numpy 版本或文件路径): {e}")
+        env.close()
         return
-    
-    print(f"模型加载成功！")
-    print(f"模型已训练步数: {model.num_timesteps}")
-    print(f"将继续训练 {total_timesteps} 步...")
-    
-    # 设置环境（使用与模型训练时相同的环境配置）
-    # 注意：如果环境配置发生变化，可能需要重新创建环境
-    env = make_vec_env(
-        RacingEnv,
-        n_envs=2,
-        vec_env_cls=SubprocVecEnv,
-        env_kwargs={'render_mode': None},
-        seed=42
-    )
-    
-    # 设置模型的环境（如果需要）
-    model.set_env(env)
-    
-    # 设置检查点保存参数
-    if save_dir is None:
-        save_dir = f"./checkpoints/{algorithm.lower()}"
-    if name_prefix is None:
-        name_prefix = f"{algorithm.lower()}_racing_car"
-    
-    # 创建检查点回调
+
+    print(f"当前已训练步数: {model.num_timesteps}")
+    print(f"目标继续训练: {args.timesteps} 步")
+
     checkpoint_callback = PeriodicCheckpointCallback(
-        save_freq=save_freq,
-        save_dir=save_dir,
-        name_prefix=name_prefix,
+        save_freq=args.save_freq,
+        save_dir="./checkpoints/ppo",
+        name_prefix="ppo_racing_car",
         verbose=1,
     )
-    
-    # 继续训练
-    print("\n开始继续训练...")
+
     model.learn(
-        total_timesteps=total_timesteps,
+        total_timesteps=args.timesteps,
         callback=checkpoint_callback,
-        reset_num_timesteps=False  # 不重置步数计数器，继续累计
+        reset_num_timesteps=False
     )
-    
-    # 保存更新后的模型
+
     model.save(model_path)
-    print(f"\n模型已更新并保存为 {model_path}.zip")
-    print(f"总训练步数: {model.num_timesteps}")
-    
+    print(f"模型已更新并保存至 {model_path}")
     env.close()
 
 
-def test_model(model):
-    """测试训练好的模型"""
-    # 创建带渲染的环境
-    env = RacingEnv(render_mode='human')
-
-    obs, info = env.reset()
-    total_reward = 0
-    steps = 0
-
-    print("开始测试模型...")
-    while True:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, truncated, info = env.step(action)
-        total_reward += reward
-        steps += 1
-
-        env.render()
-
-        if done or truncated:
-            print(f"测试结束: 总奖励 = {total_reward:.2f}, 步数 = {steps}")
-            break
-
-    env.close()
-
-
-def visualize_model(model_path, num_episodes=5, algorithm='ppo'):
-    """
-    加载并可视化已训练的模型
-
-    Args:
-        model_path: 模型文件路径（不含扩展名）
-        num_episodes: 要运行的回合数
-        algorithm: 算法类型 ('ppo' 或 'dqn')
-    """
-    import os
-
-    # 检查模型文件是否存在
+def visualize(args):
+    """可视化模型表现 (单环境渲染)"""
+    model_path = args.model_path
     if not os.path.exists(f"{model_path}.zip"):
-        print(f"错误: 找不到模型文件 {model_path}.zip")
-        print("请确保模型文件存在，或先运行训练脚本。")
+        print(f"错误: 找不到模型 {model_path}")
         return
 
-    # 加载模型
-    print(f"正在加载模型: {model_path}.zip")
+    print(f"加载模型进行可视化: {model_path}")
     try:
-        if algorithm.lower() == 'ppo':
-            model = PPO.load(model_path)
-        elif algorithm.lower() == 'dqn':
-            model = DQN.load(model_path)
-        
+        model = PPO.load(model_path, device="cpu")
     except Exception as e:
-        print(f"加载模型失败: {e}")
+        print(f"加载失败: {e}")
         return
 
-    print(f"模型加载成功！开始可视化 {num_episodes} 个回合...")
-    print("按 ESC 键可以提前退出\n")
-
-    # 创建带渲染的环境
+    # 可视化只能用单进程 + render_mode='human'
     env = RacingEnv(render_mode='human')
 
-    episode_rewards = []
-    episode_steps = []
-
-    for episode in range(num_episodes):
-        obs, info = env.reset()
+    for episode in range(args.episodes):
+        obs, _ = env.reset()
+        done = False
         total_reward = 0
         steps = 0
-        episode_done = False
 
-        print(f"\n=== 回合 {episode + 1}/{num_episodes} ===")
+        print(f"--- Episode {episode + 1}/{args.episodes} ---")
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, truncated, _ = env.step(action)
+            total_reward += reward
+            steps += 1
+            env.render()
 
-        while not episode_done:
-            # 检查是否要提前退出（通过 pygame 事件）
+            # 简单的退出检查
             import pygame
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    print("\n用户提前退出")
-                    episode_done = True
-                    break
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        print("\n用户提前退出")
-                        episode_done = True
-                        break
+                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    print("用户退出")
+                    env.close()
+                    return
 
-            if episode_done:
-                break
-
-            # 预测动作
-            action, _ = model.predict(obs, deterministic=True)
-
-            # 执行动作
-            obs, reward, done, truncated, info = env.step(action)
-            total_reward += reward
-            steps += 1
-
-            # 渲染
-            env.render()
-
-            # 检查是否结束
             if done or truncated:
-                episode_done = True
-                episode_rewards.append(total_reward)
-                episode_steps.append(steps)
-                print(f"回合 {episode + 1} 结束:")
-                print(f"  总奖励: {total_reward:.2f}")
-                print(f"  步数: {steps}")
-
-        if episode < num_episodes - 1:
-            # 短暂暂停，让用户看到结果
-            import time
-            time.sleep(1)
+                print(f"Episode 结束: Reward={total_reward:.2f}, Steps={steps}")
+                done = True
+                import time
+                time.sleep(1)
 
     env.close()
 
-    # 打印统计信息
-    print("\n" + "="*50)
-    print("可视化统计:")
-    print("="*50)
-    print(f"总回合数: {len(episode_rewards)}")
-    print(
-        f"平均奖励: {np.mean(episode_rewards):.2f} ± {np.std(episode_rewards):.2f}")
-    print(f"最高奖励: {np.max(episode_rewards):.2f}")
-    print(f"最低奖励: {np.min(episode_rewards):.2f}")
-    print(f"平均步数: {np.mean(episode_steps):.2f} ± {np.std(episode_steps):.2f}")
-    print(f"最长步数: {np.max(episode_steps)}")
-    print(f"最短步数: {np.min(episode_steps)}")
-    print("="*50)
 
-
-def random_policy_demo():
-    """随机策略演示（用于测试环境）"""
-    env = RacingEnv(render_mode='human')
-
+def random_demo(args):
+    """随机策略演示"""
     print("运行随机策略演示...")
-    for episode in range(3):
-        obs, info = env.reset()
-        total_reward = 0
-        steps = 0
-
-        while True:
-            # 随机动作
+    env = RacingEnv(render_mode='human')
+    for _ in range(3):
+        env.reset()
+        done = False
+        while not done:
             action = env.action_space.sample()
-            obs, reward, done, truncated, info = env.step(action)
-            total_reward += reward
-            steps += 1
-
+            _, _, done, truncated, _ = env.step(action)
             env.render()
-
-            if done or truncated:
-                print(
-                    f"回合 {episode + 1} 结束: 总奖励 = {total_reward:.2f}, 步数 = {steps}")
-                break
-
+            if done or truncated: break
     env.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="赛车强化学习训练脚本 (PPO Only)")
+    subparsers = parser.add_subparsers(dest='command', help='可用命令')
+    subparsers.required = True
+
+    # 1. Train 命令
+    parser_train = subparsers.add_parser('train', help='从头开始训练')
+    parser_train.add_argument('--timesteps', type=int, default=500000, help='训练总步数')
+    parser_train.add_argument('--save_freq', type=int, default=20000, help='保存频率')
+    parser_train.set_defaults(func=train)
+
+    # 2. Continue 命令
+    parser_cont = subparsers.add_parser('continue', help='加载模型继续训练')
+    parser_cont.add_argument('model_path', type=str, help='模型路径 (不含 .zip)')
+    parser_cont.add_argument('--timesteps', type=int, default=200000, help='继续训练步数')
+    parser_cont.add_argument('--save_freq', type=int, default=20000, help='保存频率')
+    parser_cont.set_defaults(func=continue_train)
+
+    # 3. Visualize 命令
+    parser_viz = subparsers.add_parser('viz', help='可视化模型')
+    parser_viz.add_argument('model_path', type=str, help='模型路径')
+    parser_viz.add_argument('--episodes', type=int, default=5, help='运行回合数')
+    parser_viz.set_defaults(func=visualize)
+
+    # 4. Random 命令
+    parser_rand = subparsers.add_parser('random', help='随机策略测试')
+    parser_rand.set_defaults(func=random_demo)
+
+    # 解析参数并执行对应函数
+    args = parser.parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":
-    import sys
-    import os
-
-    if len(sys.argv) > 1:
-        command = sys.argv[1].lower()
-
-        if command == 'ppo':
-            train_with_ppo()
-        elif command == 'random':
-            random_policy_demo()
-        elif command == 'visualize' or command == 'viz':
-            # 可视化模式: python train_rl.py visualize [model_path] [algorithm] [num_episodes]
-            if len(sys.argv) < 3:
-                print(
-                    "用法: python train_rl.py visualize <model_path> [algorithm] [num_episodes]")
-                print("示例: python train_rl.py visualize ppo_racing_car ppo 5")
-                sys.exit(1)
-
-            model_path = sys.argv[2]
-            algorithm = sys.argv[3] if len(sys.argv) > 3 else 'ppo'
-            num_episodes = int(sys.argv[4]) if len(sys.argv) > 4 else 5
-
-            visualize_model(model_path, num_episodes, algorithm)
-        elif command == 'continue' or command == 'resume':
-            # 继续训练模式: python train_rl.py continue <model_path> [algorithm] [total_timesteps] [save_freq]
-            if len(sys.argv) < 3:
-                print("用法: python train_rl.py continue <model_path> [algorithm] [total_timesteps] [save_freq]")
-                print("示例: python train_rl.py continue ppo_racing_car ppo 100000 10000")
-                print("示例: python train_rl.py continue ppo_racing_car ppo 50000")
-                sys.exit(1)
-
-            model_path = sys.argv[2]
-            algorithm = sys.argv[3] if len(sys.argv) > 3 else 'ppo'
-            total_timesteps = int(sys.argv[4]) if len(sys.argv) > 4 else 100000
-            save_freq = int(sys.argv[5]) if len(sys.argv) > 5 else 10000
-
-            continue_training(model_path, algorithm, total_timesteps, save_freq)
-        else:
-            print("用法:")
-            print("  训练: python train_rl.py [ppo|dqn|random]")
-            print(
-                "  可视化: python train_rl.py visualize <model_path> [algorithm] [num_episodes]")
-            print("  继续训练: python train_rl.py continue <model_path> [algorithm] [total_timesteps] [save_freq]")
-            print("示例:")
-            print("  python train_rl.py ppo")
-            print("  python train_rl.py visualize ppo_racing_car ppo 5")
-            print("  python train_rl.py continue ppo_racing_car ppo 100000 10000")
-    else:
-        # 默认运行随机策略演示
-        print("未指定命令，运行随机策略演示...")
-        print("用法:")
-        print("  训练: python train_rl.py [ppo|dqn|random]")
-        print(
-            "  可视化: python train_rl.py visualize <model_path> [algorithm] [num_episodes]")
-        print("  继续训练: python train_rl.py continue <model_path> [algorithm] [total_timesteps] [save_freq]")
-        random_policy_demo()
+    main()

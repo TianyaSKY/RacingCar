@@ -110,8 +110,8 @@ class Track:
         return p[0], p[1], nx, nz
 
     def draw(self):
-        # 绘制无限大地板
-        glColor3f(*COLOR_GROUND)
+        # 绘制无限大地板（美化：草地纹理效果）
+        glColor3f(0.2, 0.5, 0.2)  # 深绿色草地
         glBegin(GL_QUADS)
         ground_size = 400
         glVertex3f(-ground_size, -1.5, -ground_size)
@@ -128,12 +128,12 @@ class Track:
         for i in range(num_points + 1): # +1 是为了闭合环路
             idx = i % num_points
             
-            # 路肩变色效果
+            # 路肩变色效果（增强对比度）
             if (i // 4) % 2 == 0:
-                glColor3f(*COLOR_KERB_RED) 
+                glColor3f(0.8, 0.1, 0.1)  # 鲜艳红色
             else:
-                glColor3f(*COLOR_KERB_WHITE)
-            
+                glColor3f(0.9, 0.9, 0.9)  # 亮白色
+                
             # 稍微画宽一点作为路肩
             lx, lz = self.left_edge[idx]
             rx, rz = self.right_edge[idx]
@@ -143,8 +143,8 @@ class Track:
             
         glEnd()
 
-        # 绘制路面 (覆盖在路肩上面一点点)
-        glColor3f(*COLOR_ROAD)
+        # 绘制路面 (覆盖在路肩上面一点点，美化：沥青质感)
+        glColor3f(0.25, 0.25, 0.25)  # 深灰色沥青
         glBegin(GL_QUAD_STRIP)
         for i in range(num_points + 1):
             idx = i % num_points
@@ -162,3 +162,13 @@ class Track:
             glVertex3f(lx, -0.9, lz)
             glVertex3f(rx, -0.9, rz)
         glEnd()
+        
+        # 绘制黄色中心线（增强赛道引导）
+        glColor3f(1.0, 1.0, 0.0)  # 亮黄色
+        glLineWidth(2.5)
+        glBegin(GL_LINE_STRIP)
+        for i in range(num_points):
+            x, z = self.path_points[i]
+            glVertex3f(x, -0.85, z)  # 略高于路面
+        glEnd()
+        glLineWidth(1.0)  # 恢复默认线宽

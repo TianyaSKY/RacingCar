@@ -59,11 +59,11 @@ class RacingEnv(gym.Env):
 
         # 动作空间: 7个离散动作
         self.action_space = spaces.Discrete(7)
-        self.ray_angles = angles_29 = [
-            -170, -150, -130, -110, -90, -80, -70, -60, -50, -45, -40, -35,
-            -30,  -25,  -20,  -15, -10,  -5,   0,
-            5,    10,   15,   20,  25,  30,  35,  40,  45,  50,  60,  70,  80,  90,
-            110,  130,  150,  170
+        # 稀疏且对称的雷达配置 (共 11 条)
+        self.ray_angles = [
+            -90, -60, -30, -15, -5,  # 左侧视野
+            0,  # 正前方 (最重要)
+            5, 15, 30, 60, 90  # 右侧视野
         ]
         # 状态空间:
         # [x, z, angle, speed, track_dist, track_dir_x, track_dir_z, ray_0, ray_1, ray_2, ray_3, ray_4, ray_xxx]
@@ -175,11 +175,15 @@ class RacingEnv(gym.Env):
 
     def _raycast_obstacles(self, max_distance=50.0):
         """
-        射线检测障碍物
-        返回归一化的距离（0-1，1表示没有障碍物）
+        射线检测障碍物 (高性能优化版)
         """
         rad = math.radians(self.car.angle)
         ray_distances = []
+
+        # 优化1: 提前把所有障碍物的边界拿出来，避免在死循环里重复调用函数
+        # 这能显著减少 Python 函数调用的开销
+        obs_bounds_list = [obs.get_bounds() for obs in self.obstacles]
+
         for ray_angle in self.ray_angles:
             ray_rad = rad + math.radians(ray_angle)
             ray_dx = math.sin(ray_rad)
@@ -187,24 +191,32 @@ class RacingEnv(gym.Env):
 
             min_dist = max_distance
 
-            # 检测与障碍物的碰撞
-            for step in range(0, int(max_distance * 10), 1):
+            # 优化2: 步长从 1 改为 5 (即每次前进 0.5 单位)
+            # 这种精度对于赛车避障完全足够，但速度快了 5 倍！
+            step_size = 5
+
+            for step in range(0, int(max_distance * 10), step_size):
                 t = step / 10.0
+
+                # 剪枝：如果当前步数已经超过了已知最近的障碍物，就不用往后看了
+                if t >= min_dist:
+                    break
+
                 ray_x = self.car.x + ray_dx * t
                 ray_z = self.car.z + ray_dz * t
 
-                # 检查是否与障碍物碰撞
-                for obs in self.obstacles:
-                    obs_bounds = obs.get_bounds()
-                    if (obs_bounds[0] <= ray_x <= obs_bounds[1] and
-                            obs_bounds[2] <= ray_z <= obs_bounds[3]):
+                # 检查碰撞
+                hit = False
+                for bounds in obs_bounds_list:
+                    # 直接比对坐标，没有任何函数调用
+                    if (bounds[0] <= ray_x <= bounds[1] and
+                            bounds[2] <= ray_z <= bounds[3]):
                         min_dist = t
+                        hit = True
                         break
-
-                if min_dist < max_distance:
+                if hit:
                     break
-
-            # 归一化距离（0-1，1表示没有障碍物）
+            # 归一化
             norm_dist = min_dist / max_distance
             ray_distances.append(norm_dist)
 
