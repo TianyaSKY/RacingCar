@@ -9,6 +9,7 @@ from racingcar.racing_env import RacingEnv
 from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
+from stable_baselines3.common.vec_env import SubprocVecEnv
 SB3_AVAILABLE = True
 
 
@@ -37,8 +38,9 @@ def train_with_ppo():
 
     env = make_vec_env(
         RacingEnv,
-        n_envs=2,
+        n_envs=8,
         env_kwargs={'render_mode': None},
+        vec_env_cls=SubprocVecEnv,
         seed=42
     )
 
@@ -65,7 +67,7 @@ def train_with_ppo():
         name_prefix="ppo_racing_car",
         verbose=1,
     )
-    model.learn(total_timesteps=1000000, callback=checkpoint_callback)
+    model.learn(total_timesteps=500000, callback=checkpoint_callback)
 
     # 保存模型
     model.save("ppo_racing_car")
@@ -121,6 +123,7 @@ def continue_training(model_path, algorithm='ppo', total_timesteps=100000,
     env = make_vec_env(
         RacingEnv,
         n_envs=2,
+        vec_env_cls=SubprocVecEnv,
         env_kwargs={'render_mode': None},
         seed=42
     )
@@ -332,7 +335,6 @@ if __name__ == "__main__":
                 print(
                     "用法: python train_rl.py visualize <model_path> [algorithm] [num_episodes]")
                 print("示例: python train_rl.py visualize ppo_racing_car ppo 5")
-                print("示例: python train_rl.py visualize dqn_racing_car dqn 3")
                 sys.exit(1)
 
             model_path = sys.argv[2]
