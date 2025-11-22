@@ -59,11 +59,11 @@ class RacingEnv(gym.Env):
 
         # 动作空间: 7个离散动作
         self.action_space = spaces.Discrete(7)
-        # 稀疏且对称的雷达配置 (共 11 条)
+        # 推荐的 19 条对称配置
         self.ray_angles = [
-            -90, -60, -30, -15, -5,  # 左侧视野
-            0,  # 正前方 (最重要)
-            5, 15, 30, 60, 90  # 右侧视野
+            -90, -75, -60, -45, -30, -20, -10, -5,  # 左侧加细
+            0,  # 正前方
+            5, 10, 20, 30, 45, 60, 75, 90  # 右侧加细
         ]
         # 状态空间:
         # [x, z, angle, speed, track_dist, track_dir_x, track_dir_z, ray_0, ray_1, ray_2, ray_3, ray_4, ray_xxx]
@@ -173,7 +173,7 @@ class RacingEnv(gym.Env):
                 closest = (px, pz)
         return closest
 
-    def _raycast_obstacles(self, max_distance=50.0):
+    def _raycast_obstacles(self, max_distance=100.0):
         """
         射线检测障碍物 (高性能优化版)
         """

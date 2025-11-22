@@ -116,9 +116,6 @@ def continue_train(args):
         callback=checkpoint_callback,
         reset_num_timesteps=False
     )
-
-    model.save(model_path)
-    print(f"模型已更新并保存至 {model_path}")
     env.close()
 
 
@@ -199,8 +196,8 @@ def main():
     # 2. Continue 命令
     parser_cont = subparsers.add_parser('continue', help='加载模型继续训练')
     parser_cont.add_argument('model_path', type=str, help='模型路径 (不含 .zip)')
-    parser_cont.add_argument('--timesteps', type=int, default=200000, help='继续训练步数')
-    parser_cont.add_argument('--save_freq', type=int, default=20000, help='保存频率')
+    parser_cont.add_argument('--timesteps', type=int, default=10000000, help='继续训练步数')
+    parser_cont.add_argument('--save_freq', type=int, default=100000, help='保存频率')
     parser_cont.set_defaults(func=continue_train)
 
     # 3. Visualize 命令
