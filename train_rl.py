@@ -11,7 +11,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 
 # 全局配置
 N_ENVS = 8  # CPU 核心数
-N_STEPS = 128  # 运算步 需要同步调整
+N_STEPS = 512  # 运算步 需要同步调整
 SEED = 42
 
 
@@ -189,8 +189,8 @@ def main():
 
     # 1. Train 命令
     parser_train = subparsers.add_parser('train', help='从头开始训练')
-    parser_train.add_argument('--timesteps', type=int, default=500000, help='训练总步数')
-    parser_train.add_argument('--save_freq', type=int, default=20000, help='保存频率')
+    parser_train.add_argument('--timesteps', type=int, default=10000000, help='训练总步数')
+    parser_train.add_argument('--save_freq', type=int, default=100000, help='保存频率')
     parser_train.set_defaults(func=train)
 
     # 2. Continue 命令
