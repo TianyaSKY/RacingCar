@@ -1,6 +1,6 @@
 # Racing Car RL Agent (PPO)
 
-这是一个基于强化学习（Reinforcement Learning）的赛车自动驾驶项目。项目使用了 **Stable Baselines 3** 库中的 **PPO (Proximal Policy Optimization)** 算法来训练赛车智能体，环境基于 Pygame 构建。
+这是一个基于强化学习（Reinforcement Learning）的3D赛车自动驾驶项目。项目使用了 **Stable Baselines 3** 库中的 **PPO (Proximal Policy Optimization)** 算法来训练赛车智能体，环境基于 Pygame 构建。
 
 项目支持多核 CPU 并行训练、模型断点保存、断点续训以及可视化评估。
 

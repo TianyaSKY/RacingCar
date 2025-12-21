@@ -12,14 +12,14 @@ TURN_SPEED = 2.5     # 转向速度 (度/帧)
 ACCELERATION = 0.02
 FRICTION = 0.96      # 摩擦力稍微大一点，方便过弯
 
-OBSTACLE_COUNT = 15
+OBSTACLE_COUNT = 5
 
 # --- 赛道生成 ---
 ROAD_WIDTH = 10.0
 OFF_ROAD_TOLERANCE = 2.0
 TRACK_POINTS = 20    # 控制点数量
 TRACK_RADIUS = 150   # 赛道大概半径
-TRACK_VARIANCE = 60  # 赛道扭曲程度 (随机半径波动范围)
+TRACK_VARIANCE = 40  # 赛道扭曲程度 (随机半径波动范围)
 
 # --- 颜色定义 ---
 COLOR_SKY = (0.5, 0.8, 1.0)
