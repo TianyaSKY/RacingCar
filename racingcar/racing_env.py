@@ -103,7 +103,26 @@ class RacingEnv(gym.Env):
             pygame.display.set_caption("Racing RL Environment")
             resize(DISPLAY_WIDTH, DISPLAY_HEIGHT)
             glEnable(GL_DEPTH_TEST)
+            glEnable(GL_NORMALIZE)
             glShadeModel(GL_SMOOTH)
+
+            glEnable(GL_FOG)
+            glFogfv(GL_FOG_COLOR, (0.30, 0.49, 0.68, 1.0))
+            glFogf(GL_FOG_DENSITY, 0.008)
+            glFogi(GL_FOG_MODE, GL_EXP2)
+
+            glEnable(GL_LIGHTING)
+            glEnable(GL_LIGHT0)
+            glEnable(GL_LIGHT1)
+            glLightfv(GL_LIGHT0, GL_POSITION, (-18.0, 22.0, 14.0, 1.0))
+            glLightfv(GL_LIGHT0, GL_AMBIENT, (0.16, 0.18, 0.22, 1.0))
+            glLightfv(GL_LIGHT0, GL_DIFFUSE, (1.0, 0.88, 0.68, 1.0))
+            glLightfv(GL_LIGHT0, GL_SPECULAR, (1.0, 0.96, 0.82, 1.0))
+            glLightfv(GL_LIGHT1, GL_POSITION, (14.0, 8.0, -18.0, 1.0))
+            glLightfv(GL_LIGHT1, GL_DIFFUSE, (0.22, 0.42, 0.72, 1.0))
+            glLightfv(GL_LIGHT1, GL_SPECULAR, (0.18, 0.35, 0.65, 1.0))
+            glEnable(GL_COLOR_MATERIAL)
+            glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
             self._pygame_initialized = True
 
     def _get_observation(self):
@@ -321,23 +340,31 @@ class RacingEnv(gym.Env):
             elif event.type == VIDEORESIZE:
                 resize(event.w, event.h)
 
-        # 渲染
-        glClearColor(*COLOR_SKY, 1)
+        # 与手动模式保持同一展示构图，训练可视化也能清楚展示赛车细节。
+        glClearColor(0.30, 0.49, 0.68, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
-        # 第三人称相机
-        dist_behind = 15
-        cam_height = 6
+        dist_behind = 12.5
+        cam_height = 4.4
+        side_offset = 2.4
+        look_ahead = 1.8
         rad = math.radians(self.car.angle)
-        camera_x = self.car.x - math.sin(rad) * dist_behind
-        camera_z = self.car.z - math.cos(rad) * dist_behind
+        forward_x, forward_z = math.sin(rad), math.cos(rad)
+        right_x, right_z = math.cos(rad), -math.sin(rad)
+        camera_x = (
+            self.car.x - forward_x * dist_behind + right_x * side_offset)
+        camera_z = (
+            self.car.z - forward_z * dist_behind + right_z * side_offset)
 
-        gluLookAt(camera_x, cam_height, camera_z,
-                  self.car.x, 0, self.car.z,
-                  0, 1, 0)
+        gluLookAt(
+            camera_x, cam_height, camera_z,
+            self.car.x + forward_x * look_ahead, -0.18,
+            self.car.z + forward_z * look_ahead,
+            0, 1, 0,
+        )
 
         # 绘制世界
         self.track.draw()

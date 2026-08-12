@@ -23,28 +23,30 @@ class Game:
         resize(DISPLAY_WIDTH, DISPLAY_HEIGHT)
         glEnable(GL_DEPTH_TEST)
         glShadeModel(GL_SMOOTH)
-        
-        # 启用雾效增强3D深度感
+        glEnable(GL_NORMALIZE)
+
+        # 低密度暖雾把远处赛道融入天空，同时避免近处赛车发灰。
         glEnable(GL_FOG)
-        fog_color = (0.5, 0.7, 1.0, 1.0)  # 天空蓝渐变
+        fog_color = (0.30, 0.49, 0.68, 1.0)
         glFogfv(GL_FOG_COLOR, fog_color)
-        glFogf(GL_FOG_DENSITY, 0.02)
-        glFogi(GL_FOG_MODE, GL_EXP)
+        glFogf(GL_FOG_DENSITY, 0.008)
+        glFogi(GL_FOG_MODE, GL_EXP2)
         glHint(GL_FOG_HINT, GL_NICEST)
 
-        # 启用基本光照增强3D立体感
+        # 日光主光 + 冷色补光：高光勾勒漆面，阴影面仍保留几何细节。
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
-        light_pos = [10.0, 10.0, 10.0, 1.0]  # 光源位置
-        glLightfv(GL_LIGHT0, GL_POSITION, light_pos)
-        ambient = [0.2, 0.2, 0.2, 1.0]  # 环境光
-        diffuse = [0.8, 0.8, 0.8, 1.0]  # 漫反射光
-        glLightfv(GL_LIGHT0, GL_AMBIENT, ambient)
-        glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse)
-        
-        # 启用颜色材质，使glColor生效
+        glEnable(GL_LIGHT1)
+        glLightfv(GL_LIGHT0, GL_POSITION, (-18.0, 22.0, 14.0, 1.0))
+        glLightfv(GL_LIGHT0, GL_AMBIENT, (0.16, 0.18, 0.22, 1.0))
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, (1.0, 0.88, 0.68, 1.0))
+        glLightfv(GL_LIGHT0, GL_SPECULAR, (1.0, 0.96, 0.82, 1.0))
+        glLightfv(GL_LIGHT1, GL_POSITION, (14.0, 8.0, -18.0, 1.0))
+        glLightfv(GL_LIGHT1, GL_DIFFUSE, (0.22, 0.42, 0.72, 1.0))
+        glLightfv(GL_LIGHT1, GL_SPECULAR, (0.18, 0.35, 0.65, 1.0))
+
         glEnable(GL_COLOR_MATERIAL)
-        glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
 
         self.reset_game()
         
@@ -129,27 +131,31 @@ class Game:
                 b1[2] < b2[3] and b1[3] > b2[2])
 
     def render(self):
-        glClearColor(*COLOR_SKY, 1)
+        glClearColor(0.30, 0.49, 0.68, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        
+
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
-        # --- 第三人称旋转相机 ---
-        # 相机需要位于车屁股后面，这需要用到三角函数计算位置
-        dist_behind = 15
-        cam_height = 6
-        
-        # 将角度转为弧度
+        # 相机略偏左且注视前方，能同时读到车顶、轮组和前部空气动力套件。
+        dist_behind = 12.5
+        cam_height = 4.4
+        side_offset = 2.4
+        look_ahead = 1.8
         rad = math.radians(self.car.angle)
-        
-        # 关键：相机位置 = 车位置 - 车的朝向向量 * 距离
-        camera_x = self.car.x - math.sin(rad) * dist_behind
-        camera_z = self.car.z - math.cos(rad) * dist_behind
-        
-        gluLookAt(camera_x, cam_height, camera_z, 
-                  self.car.x, 0, self.car.z, 
-                  0, 1, 0)
+        forward_x, forward_z = math.sin(rad), math.cos(rad)
+        right_x, right_z = math.cos(rad), -math.sin(rad)
+        camera_x = (
+            self.car.x - forward_x * dist_behind + right_x * side_offset)
+        camera_z = (
+            self.car.z - forward_z * dist_behind + right_z * side_offset)
+
+        gluLookAt(
+            camera_x, cam_height, camera_z,
+            self.car.x + forward_x * look_ahead, -0.18,
+            self.car.z + forward_z * look_ahead,
+            0, 1, 0,
+        )
 
         # 绘制世界
         self.track.draw()

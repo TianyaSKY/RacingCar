@@ -14,34 +14,46 @@ def resize(width, height):
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
 
-def draw_cube(x, y, z, width, height, depth, color):
-    """通用立方体绘制函数"""
-    glPushMatrix()
-    # 这里的y+height/2是为了让y坐标代表立方体的底部
-    glTranslatef(x, y + height/2, z)
-    glColor3f(*color)
-    
-    half_w, half_h, half_d = width/2, height/2, depth/2
+def draw_cube(x, y, z, width, height, depth, color, shininess=24.0):
+    """绘制以 ``(x, y, z)`` 为底部中心的带法线立方体。
 
+    固定管线光照依赖面法线；逐面设置法线可让所有现有几何和赛车漆面
+    都获得正确的明暗层次。``shininess`` 为 ``None`` 时保持哑光。
+    """
+    glPushMatrix()
+    glTranslatef(x, y + height / 2, z)
+    glColor3f(*color)
+
+    if shininess is not None:
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.32, 0.32, 0.32, 1.0))
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, shininess)
+
+    half_w, half_h, half_d = width / 2, height / 2, depth / 2
     glBegin(GL_QUADS)
-    # Front
-    glVertex3f(-half_w, -half_h,  half_d); glVertex3f( half_w, -half_h,  half_d)
-    glVertex3f( half_w,  half_h,  half_d); glVertex3f(-half_w,  half_h,  half_d)
-    # Back
-    glVertex3f(-half_w, -half_h, -half_d); glVertex3f(-half_w,  half_h, -half_d)
-    glVertex3f( half_w,  half_h, -half_d); glVertex3f( half_w, -half_h, -half_d)
-    # Top
-    glVertex3f(-half_w,  half_h, -half_d); glVertex3f(-half_w,  half_h,  half_d)
-    glVertex3f( half_w,  half_h,  half_d); glVertex3f( half_w,  half_h, -half_d)
-    # Bottom
-    glVertex3f(-half_w, -half_h, -half_d); glVertex3f( half_w, -half_h, -half_d)
-    glVertex3f( half_w, -half_h,  half_d); glVertex3f(-half_w, -half_h,  half_d)
-    # Right
-    glVertex3f( half_w, -half_h, -half_d); glVertex3f( half_w,  half_h, -half_d)
-    glVertex3f( half_w,  half_h,  half_d); glVertex3f( half_w, -half_h,  half_d)
-    # Left
-    glVertex3f(-half_w, -half_h, -half_d); glVertex3f(-half_w, -half_h,  half_d)
-    glVertex3f(-half_w,  half_h,  half_d); glVertex3f(-half_w,  half_h, -half_d)
+
+    glNormal3f(0, 0, 1)
+    glVertex3f(-half_w, -half_h, half_d); glVertex3f(half_w, -half_h, half_d)
+    glVertex3f(half_w, half_h, half_d); glVertex3f(-half_w, half_h, half_d)
+
+    glNormal3f(0, 0, -1)
+    glVertex3f(-half_w, -half_h, -half_d); glVertex3f(-half_w, half_h, -half_d)
+    glVertex3f(half_w, half_h, -half_d); glVertex3f(half_w, -half_h, -half_d)
+
+    glNormal3f(0, 1, 0)
+    glVertex3f(-half_w, half_h, -half_d); glVertex3f(-half_w, half_h, half_d)
+    glVertex3f(half_w, half_h, half_d); glVertex3f(half_w, half_h, -half_d)
+
+    glNormal3f(0, -1, 0)
+    glVertex3f(-half_w, -half_h, -half_d); glVertex3f(half_w, -half_h, -half_d)
+    glVertex3f(half_w, -half_h, half_d); glVertex3f(-half_w, -half_h, half_d)
+
+    glNormal3f(1, 0, 0)
+    glVertex3f(half_w, -half_h, -half_d); glVertex3f(half_w, half_h, -half_d)
+    glVertex3f(half_w, half_h, half_d); glVertex3f(half_w, -half_h, half_d)
+
+    glNormal3f(-1, 0, 0)
+    glVertex3f(-half_w, -half_h, -half_d); glVertex3f(-half_w, -half_h, half_d)
+    glVertex3f(-half_w, half_h, half_d); glVertex3f(-half_w, half_h, -half_d)
     glEnd()
     glPopMatrix()
 
