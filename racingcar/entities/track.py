@@ -2,6 +2,7 @@
 import math
 import random
 from OpenGL.GL import *
+from OpenGL.GLU import GLU_SMOOTH, gluCylinder, gluNewQuadric, gluQuadricNormals
 
 from ..config import *
 
@@ -11,6 +12,26 @@ class Track:
         self.left_edge = []
         self.right_edge = []
         self.generate_track()
+        self._generate_trees()
+        self._tree_quadric = gluNewQuadric()
+        gluQuadricNormals(self._tree_quadric, GLU_SMOOTH)
+
+    def _generate_trees(self):
+        """在赛道两侧随机布置低多边形树木（固定种子，布局稳定）。"""
+        rng = random.Random(20260812)
+        self.trees = []
+        for i in range(0, len(self.path_points), 3):
+            p = self.path_points[i]
+            # 复用赛道边缘方向作为外法线
+            nx = (self.left_edge[i][0] - p[0]) / ROAD_WIDTH
+            nz = (self.left_edge[i][1] - p[1]) / ROAD_WIDTH
+            side = 1 if rng.random() < 0.5 else -1
+            dist = ROAD_WIDTH + 9 + rng.random() * 16
+            x = p[0] + side * nx * dist
+            z = p[1] + side * nz * dist
+            # 与已有树木保持间距，避免扎堆
+            if all((x - tx) ** 2 + (z - tz) ** 2 > 49 for tx, tz, _ in self.trees):
+                self.trees.append((x, z, 0.8 + rng.random() * 0.7))
 
     def _catmull_rom(self, p0, p1, p2, p3, t):
         """计算插值点，生成平滑曲线"""
@@ -110,65 +131,100 @@ class Track:
         return p[0], p[1], nx, nz
 
     def draw(self):
-        # 绘制无限大地板（美化：草地纹理效果）
-        glColor3f(0.2, 0.5, 0.2)  # 深绿色草地
-        glBegin(GL_QUADS)
-        ground_size = 400
-        glVertex3f(-ground_size, -1.5, -ground_size)
-        glVertex3f(ground_size, -1.5, -ground_size)
-        glVertex3f(ground_size, -1.5, ground_size)
-        glVertex3f(-ground_size, -1.5, ground_size)
-        glEnd()
+        self._draw_ground()
+        self._draw_track_surface()
+        self._draw_center_line()
+        self._draw_trees()
 
-        # 绘制赛道
-        # 使用 Triangle Strip 或 Quad Strip 连接边缘点
+    def _draw_ground(self):
+        """棋盘格草地：深浅绿交替的网格在光照下呈现纹理感。"""
+        glNormal3f(0.0, 1.0, 0.0)
+        tile = 20.0
+        half = 10
+        for gx in range(-half, half):
+            for gz in range(-half, half):
+                if (gx + gz) % 2 == 0:
+                    glColor3f(0.16, 0.38, 0.14)
+                else:
+                    glColor3f(0.12, 0.30, 0.11)
+                glBegin(GL_QUADS)
+                glVertex3f(gx * tile, -1.5, gz * tile)
+                glVertex3f((gx + 1) * tile, -1.5, gz * tile)
+                glVertex3f((gx + 1) * tile, -1.5, (gz + 1) * tile)
+                glVertex3f(gx * tile, -1.5, (gz + 1) * tile)
+                glEnd()
+
+    def _draw_track_surface(self):
+        """路肩红白棋盘 + 深灰沥青路面，法线朝上保证光照正确。"""
         num_points = len(self.path_points)
-        
+        glNormal3f(0.0, 1.0, 0.0)
+
         glBegin(GL_QUAD_STRIP)
-        for i in range(num_points + 1): # +1 是为了闭合环路
+        for i in range(num_points + 1):  # +1 是为了闭合环路
             idx = i % num_points
-            
-            # 路肩变色效果（增强对比度）
             if (i // 4) % 2 == 0:
-                glColor3f(0.8, 0.1, 0.1)  # 鲜艳红色
+                glColor3f(0.78, 0.10, 0.10)  # 鲜艳红色
             else:
-                glColor3f(0.9, 0.9, 0.9)  # 亮白色
-                
-            # 稍微画宽一点作为路肩
+                glColor3f(0.92, 0.92, 0.92)  # 亮白色
             lx, lz = self.left_edge[idx]
             rx, rz = self.right_edge[idx]
-            
             glVertex3f(lx, -1.0, lz)
             glVertex3f(rx, -1.0, rz)
-            
         glEnd()
 
-        # 绘制路面 (覆盖在路肩上面一点点，美化：沥青质感)
-        glColor3f(0.25, 0.25, 0.25)  # 深灰色沥青
+        # 沥青路面（收缩露出路肩）
+        glColor3f(0.24, 0.24, 0.25)
         glBegin(GL_QUAD_STRIP)
         for i in range(num_points + 1):
             idx = i % num_points
-            # 收缩一点点，露出路肩
-            lx, lz = self.left_edge[idx]
-            rx, rz = self.right_edge[idx]
-            
-            # 简单的向量插值收缩
             cx, cz = self.path_points[idx]
-            lx = cx + (lx - cx) * 0.9
-            lz = cz + (lz - cz) * 0.9
-            rx = cx + (rx - cx) * 0.9
-            rz = cz + (rz - cz) * 0.9
-
+            lx = cx + (self.left_edge[idx][0] - cx) * 0.9
+            lz = cz + (self.left_edge[idx][1] - cz) * 0.9
+            rx = cx + (self.right_edge[idx][0] - cx) * 0.9
+            rz = cz + (self.right_edge[idx][1] - cz) * 0.9
             glVertex3f(lx, -0.9, lz)
             glVertex3f(rx, -0.9, rz)
         glEnd()
-        
-        # 绘制黄色中心线（增强赛道引导）
-        glColor3f(1.0, 1.0, 0.0)  # 亮黄色
-        glLineWidth(2.5)
-        glBegin(GL_LINE_STRIP)
-        for i in range(num_points):
-            x, z = self.path_points[i]
-            glVertex3f(x, -0.85, z)  # 略高于路面
+
+    def _draw_center_line(self):
+        """黄色虚线中心线，比连续线更接近真实赛道。"""
+        num_points = len(self.path_points)
+        step = 3
+        glColor3f(1.0, 0.92, 0.25)
+        glNormal3f(0.0, 1.0, 0.0)
+        glBegin(GL_QUADS)
+        for i in range(0, num_points, step * 2):
+            i0 = i % num_points
+            i1 = (i + step) % num_points
+            p0 = self.path_points[i0]
+            p1 = self.path_points[i1]
+            dx = p1[0] - p0[0]
+            dz = p1[1] - p0[1]
+            length = math.hypot(dx, dz)
+            if length == 0:
+                length = 1
+            nx, nz = -dz / length, dx / length
+            hw = 0.13
+            glVertex3f(p0[0] + nx * hw, -0.85, p0[1] + nz * hw)
+            glVertex3f(p0[0] - nx * hw, -0.85, p0[1] - nz * hw)
+            glVertex3f(p1[0] - nx * hw, -0.85, p1[1] - nz * hw)
+            glVertex3f(p1[0] + nx * hw, -0.85, p1[1] + nz * hw)
         glEnd()
-        glLineWidth(1.0)  # 恢复默认线宽
+
+    def _draw_trees(self):
+        """树干圆柱 + 两层圆锥树冠的低多边形树木（竖直生长）。"""
+        for x, z, scale in self.trees:
+            glPushMatrix()
+            glTranslatef(x, -1.5, z)
+            glScalef(scale, scale, scale)
+            # gluCylinder 沿 +Z 生成，旋转 +90° 使树轴对齐世界 +Y（竖直向上）
+            glRotatef(90.0, 1.0, 0.0, 0.0)
+            glColor3f(0.42, 0.30, 0.16)
+            gluCylinder(self._tree_quadric, 0.28, 0.38, 2.2, 8, 1)
+            glTranslatef(0.0, 0.0, 2.2)  # 旋转后本地 Z 即世界 Y
+            glColor3f(0.10, 0.33, 0.12)
+            gluCylinder(self._tree_quadric, 0.0, 1.7, 2.0, 8, 1)
+            glTranslatef(0.0, 0.0, 1.5)
+            glColor3f(0.13, 0.39, 0.15)
+            gluCylinder(self._tree_quadric, 0.0, 1.2, 1.5, 8, 1)
+            glPopMatrix()
