@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="DeepLearn" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="DeepLearn" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="~/PycharmProjects/RacingCar/.venv" project-jdk-type="Python SDK" />
 </project>
