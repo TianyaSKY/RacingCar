@@ -1,3 +1,17 @@
-.vscode/
+# --- 训练产物 ---
 checkpoints/*
 logs/*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 虚拟环境 ---
+.venv/
+venv/
+env/
+
+# --- 编辑器 / 系统 ---
+.vscode/
+.DS_Store
